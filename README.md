@@ -23,6 +23,7 @@ make sure you have uv installed
 `https://docs.astral.sh/uv/getting-started/installation/#__tabbed_1_1`
 
 `uv venv`
+
 `uv sync`
 
 create and edit a .env file
