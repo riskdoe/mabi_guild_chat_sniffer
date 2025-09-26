@@ -20,6 +20,7 @@ the message will be typed into any text box that is currently selected so make s
 
 # setup
 make sure you have uv installed
+
 `https://docs.astral.sh/uv/getting-started/installation/#__tabbed_1_1`
 
 `uv venv`
