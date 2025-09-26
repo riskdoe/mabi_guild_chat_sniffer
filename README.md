@@ -1,9 +1,11 @@
 What is this
 
 
-## to discord
-its a simple sniffer that uses tshark (pyshark) to read incoming packets from the mabinogi chat server
-it will find any packets that are used for guild messages and send them to discord via a simple web hook
+## sniffer
+Grabs incoming packets from chat server and send them to worker
+
+## worker
+process guild messages and then forward them to discord using a webhook
 
 ## to_client
 will take a message from a choosen discord channel, find the display name for the user
@@ -16,14 +18,30 @@ then type those messages out using a linux command "xdotool"
 the message will be typed into any text box that is currently selected so make sure you select the mabinogi chat box using the chat log
 
 
+# setup
+make sure you have uv installed
+`https://docs.astral.sh/uv/getting-started/installation/#__tabbed_1_1`
+
+`uv venv`
+`uv sync`
+
+create and edit a .env file
+
+```example
+DISCORD_WEB_HOOK="hook"
+BOT_NAME="botname"
+IN_GAME_CHAR_NAME="ingamename"
+NETWORK_INTERFACE="enp10s0"
+```
+
+
+`uv run main.py`
+
+
+
 ## extra
 
 this will only work on linux. weird i know but my server runs linux and its easy for me
-
-make sure you install on pip
-- discord.py
-- discord_webhook
-- pyshark
 
 make sure you have wireshark installed and network traffic capture dumpcap or tshark
 in my case i used
