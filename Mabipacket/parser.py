@@ -69,7 +69,6 @@ class Packet:
         if binascii.hexlify(self.opCode).decode("ascii") == "c36f0000":
             #we need do different processing cause fuck
             self.paramCount = 2
-            print("guild packet")
         else: 
             #yea this isnt a guild packet lets just leave
             self.paramCount = 0
