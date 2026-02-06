@@ -8,72 +8,77 @@ from Guildmessage import Guilde_message
 
 
 class PacketWorker:
-
-    def __init__(self, queue_maxsize: int = 1000, 
-                 discord_webhook: Optional[str] = None,
-                bot_name: str = "DefaultBot",
-                in_game_char_name: str = "DefaultChar"):
+    def __init__(
+        self,
+        queue_maxsize: int = 1000,
+        discord_webhook: Optional[str] = None,
+        bot_name: str = "DefaultBot",
+        in_game_char_name: str = "DefaultChar"
+    ):
         self._packet_queue = queue.Queue(maxsize=queue_maxsize)
         self._worker_thread = None
-        self.Webhook = discord_webhook
-        self.Botname = bot_name
-        self.Mabicharname = in_game_char_name
+        self.webhook = discord_webhook
+        self.bot_name = bot_name
+        self.in_game_char_name = in_game_char_name
         print(f"[*] PacketWorker initialized with queue max size: {queue_maxsize}")
 
     def _worker_loop(self):
-        """
-        Main loop
-        """
+        """Main worker loop for processing packets."""
         print("[*] PacketWorker thread started.")
         while True:
             packet = self._packet_queue.get()
             if packet is None:
                 print("[*] PacketWorker received shutdown signal. Exiting.")
+                self._packet_queue.task_done()
                 break
 
-            if not hasattr(packet, "tcp") or not hasattr(packet.tcp, "payload"):
-                self._packet_queue.task_done()
-                continue
-
-            if self.Webhook == None:
-                continue
-
             try:
-                payload_hex = packet.tcp.payload.replace(":", "")
-               
-
-                if payload_hex is None:
+                if not hasattr(packet, "tcp") or not hasattr(packet.tcp, "payload"):
                     self._packet_queue.task_done()
                     continue
-                payload_bytes = binascii.unhexlify(payload_hex)
 
+                if self.webhook is None:
+                    self._packet_queue.task_done()
+                    continue
+
+                payload_hex = packet.tcp.payload.replace(":", "")
+                if not payload_hex:
+                    self._packet_queue.task_done()
+                    continue
+
+                payload_bytes = binascii.unhexlify(payload_hex)
                 parsed_packet = parser.parse(data=payload_bytes, debug=False)
 
-                if type(parsed_packet) == bool:
+                if isinstance(parsed_packet, bool):
+                    self._packet_queue.task_done()
                     continue
 
                 if parsed_packet.paramCount == 0:
+                    self._packet_queue.task_done()
                     continue
 
-                #lets build the message to send to discord webhook
+                # Build the message to send to Discord webhook
                 message: Guilde_message = Guilde_message(
-                    name = parsed_packet.parameters[0].value,
-                    content = parsed_packet.parameters[1].value
-                    )
+                    name=parsed_packet.parameters[0].value,
+                    content=parsed_packet.parameters[1].value
+                )
 
-                #clean up the message a bit
+                # Clean up the message
                 message.cleanmessage()
                 message.replace_mentions()
 
-
-                if self.Mabicharname not in message.name:
-                    Webhook = DiscordWebhook(url=self.Webhook,username=message.name,content=message.content)
-                    message.add_emotes(Webhook)
+                if self.in_game_char_name not in message.name:
+                    webhook = DiscordWebhook(
+                        url=self.webhook,
+                        username=message.name,
+                        content=message.content
+                    )
+                    message.add_emotes(webhook)
                     print(f"{message.name}: {message.content}")
-                    Webhook.execute()
+                    webhook.execute()
 
             except Exception as e:
-                print(f"[!] Error in worker packet processing: \n {e}")
+                print(f"[!] Error in worker packet processing: {e}")
 
     def start(self):
         """
@@ -118,7 +123,4 @@ class PacketWorker:
     @property
     def queue_maxsize(self):
         """Returns the maximum size of the worker queue."""
-        # queue.Queue doesn't directly expose maxsize, so we need to store it
-        # or access the private attribute if absolutely necessary.
-        # For simplicity, we assume it's set in init.
         return self._packet_queue.maxsize

@@ -1,10 +1,8 @@
+import asyncio
 import pyshark
 import threading
-from worker import PacketWorker
 from typing import Optional
-
-import asyncio
-
+from worker import PacketWorker
 
 
 class PacketSniffer(threading.Thread):
@@ -24,17 +22,16 @@ class PacketSniffer(threading.Thread):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
-        print(
-            f"Starting packet sniffer on interface: {self.network_interface} "
-        )
+        print(f"Starting packet sniffer on interface: {self.network_interface}")
         try:
             self.capture = pyshark.LiveCapture(
-                interface=self.network_interface, bpf_filter="src host 54.214.176.167"
+                interface=self.network_interface,
+                bpf_filter="src host 54.214.176.167"
             )
             for packet in self.capture.sniff_continuously():
                 if not self.running:
                     print("Sniffing stopped by stop() call.")
-                    break  # Exit loop if stop() is called
+                    break
 
                 if 'TCP' not in packet:
                     continue
@@ -55,11 +52,8 @@ class PacketSniffer(threading.Thread):
             print("PacketSniffer stopped.")
 
     def stop(self):
-        """
-        Stops the packet sniffing thread.
-        """
+        """Stops the packet sniffing thread."""
         self.running = False
-        print("Stopping PacketSniffer...")   
+        print("Stopping PacketSniffer...")
         if self.capture:
             self.capture.close()
-            pass
