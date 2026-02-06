@@ -18,46 +18,45 @@ class PacketWorker:
         bot_name: str = "DefaultBot",
         in_game_char_name: str = "DefaultChar"
     ):
-        self._packet_queue = queue.Queue(maxsize=queue_maxsize)
+        self._queue = queue.Queue(maxsize=queue_maxsize)
         self._worker_thread = None
         self.webhook = discord_webhook
         self.bot_name = bot_name
         self.in_game_char_name = in_game_char_name
         print(f"[*] PacketWorker initialized with queue max size: {queue_maxsize}")
 
-    def _worker_loop(self):
-        """Main worker loop for processing packets."""
+    def _loop(self):
         print("[*] PacketWorker thread started.")
         while True:
-            packet = self._packet_queue.get()
+            packet = self._queue.get()
             if packet is None:
                 print("[*] PacketWorker received shutdown signal. Exiting.")
-                self._packet_queue.task_done()
+                self._queue.task_done()
                 break
 
             try:
                 if not hasattr(packet, "tcp") or not hasattr(packet.tcp, "payload"):
-                    self._packet_queue.task_done()
+                    self._queue.task_done()
                     continue
 
                 if self.webhook is None:
-                    self._packet_queue.task_done()
+                    self._queue.task_done()
                     continue
 
                 payload_hex = packet.tcp.payload.replace(":", "")
                 if not payload_hex:
-                    self._packet_queue.task_done()
+                    self._queue.task_done()
                     continue
 
                 payload_bytes = binascii.unhexlify(payload_hex)
                 parsed_packet = parser.parse(data=payload_bytes, debug=False)
 
                 if isinstance(parsed_packet, bool):
-                    self._packet_queue.task_done()
+                    self._queue.task_done()
                     continue
 
                 if parsed_packet.paramCount == 0:
-                    self._packet_queue.task_done()
+                    self._queue.task_done()
                     continue
 
                 # Build the message to send to Discord webhook
@@ -90,7 +89,7 @@ class PacketWorker:
         """
         if self._worker_thread is None or not self._worker_thread.is_alive():
             self._worker_thread = threading.Thread(
-                target=self._worker_loop, daemon=True
+                target=self._loop, daemon=True
             )
             self._worker_thread.start()
             print("[*] PacketWorker thread requested to start.")
@@ -103,7 +102,7 @@ class PacketWorker:
         """
         if self._worker_thread and self._worker_thread.is_alive():
             print("[*] Sending shutdown signal to PacketWorker thread...")
-            self._packet_queue.put(None)  # Poison pill
+            self._queue.put(None)  # Poison pill
             self._worker_thread.join()
             print("[*] PacketWorker thread stopped.")
         else:
@@ -115,19 +114,19 @@ class PacketWorker:
         Drops packets if the queue is full.
         """
         try:
-            self._packet_queue.put_nowait(packet)
+            self._queue.put_nowait(packet)
         except queue.Full:
             print("[!] PacketWorker queue full, dropping packet.")
 
     @property
     def queue_size(self):
         """Returns the current size of the worker queue."""
-        return self._packet_queue.qsize()
+        return self._queue.qsize()
 
     @property
     def queue_maxsize(self):
         """Returns the maximum size of the worker queue."""
-        return self._packet_queue.maxsize
+        return self._queue.maxsize
 
 
 class PacketSniffer(threading.Thread):
