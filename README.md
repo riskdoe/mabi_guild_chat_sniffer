@@ -7,7 +7,7 @@ Grabs incoming packets from chat server and send them to worker
 ## worker
 process guild messages and then forward them to discord using a webhook
 
-## to_client
+## message typer
 will take a message from a choosen discord channel, find the display name for the user
 attempt to remove any unicode emotes
 attempt to give names to any discord based emote
@@ -15,7 +15,7 @@ split the message into chunks with out breaking apart whole words
 then type those messages out using a linux command "xdotool"
 
 
-the message will be typed into any text box that is currently selected so make sure you select the mabinogi chat box using the chat log
+the message will be typed into any text box that is currently selected
 
 
 # setup
@@ -34,7 +34,10 @@ DISCORD_WEB_HOOK="hook"
 BOT_NAME="botname"
 IN_GAME_CHAR_NAME="ingamename"
 NETWORK_INTERFACE="enp10s0"
-```
+TARGET_CHANNEL_ID="discord channel id"
+GUILD_ID="discord server id"
+DISCORD_TOKEN="bot token"
+
 
 
 `uv run main.py`
