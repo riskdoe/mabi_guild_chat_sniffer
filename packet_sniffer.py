@@ -3,6 +3,7 @@ import binascii
 import pyshark
 import queue
 import threading
+from dataclasses import dataclass
 from typing import Optional
 
 import Mabipacket.guildparser as parser
@@ -10,20 +11,23 @@ from discord_webhook import DiscordWebhook
 from Guildmessage import Guilde_message
 
 
+@dataclass(frozen=True)
+class PacketSnifferConfig:
+    """Configuration for the packet sniffer and Discord webhook."""
+    discord_webhook_url: str
+    network_interface: str
+    in_game_char_name: str
+    bot_name: str = "DefaultBot"
+    queue_maxsize: int = 1000
+    bpf_filter: str = "src host 54.214.176.167"
+
+
 class PacketWorker:
-    def __init__(
-        self,
-        queue_maxsize: int = 1000,
-        discord_webhook: Optional[str] = None,
-        bot_name: str = "DefaultBot",
-        in_game_char_name: str = "DefaultChar"
-    ):
-        self._queue = queue.Queue(maxsize=queue_maxsize)
+    def __init__(self, config: PacketSnifferConfig):
+        self._config = config
+        self._queue = queue.Queue(maxsize=config.queue_maxsize)
         self._worker_thread = None
-        self.webhook = discord_webhook
-        self.bot_name = bot_name
-        self.in_game_char_name = in_game_char_name
-        print(f"[*] PacketWorker initialized with queue max size: {queue_maxsize}")
+        print(f"[*] PacketWorker initialized with queue max size: {config.queue_maxsize}")
 
     def _loop(self):
         print("[*] PacketWorker thread started.")
@@ -36,27 +40,19 @@ class PacketWorker:
 
             try:
                 if not hasattr(packet, "tcp") or not hasattr(packet.tcp, "payload"):
-                    self._queue.task_done()
-                    continue
-
-                if self.webhook is None:
-                    self._queue.task_done()
                     continue
 
                 payload_hex = packet.tcp.payload.replace(":", "")
                 if not payload_hex:
-                    self._queue.task_done()
                     continue
 
                 payload_bytes = binascii.unhexlify(payload_hex)
                 parsed_packet = parser.parse(data=payload_bytes, debug=False)
 
                 if isinstance(parsed_packet, bool):
-                    self._queue.task_done()
                     continue
 
                 if parsed_packet.paramCount == 0:
-                    self._queue.task_done()
                     continue
 
                 # Build the message to send to Discord webhook
@@ -65,14 +61,13 @@ class PacketWorker:
                     content=parsed_packet.parameters[1].value
                 )
 
-
                 # Clean up the message
                 message.cleanmessage()
                 message.replace_mentions()
 
-                if self.in_game_char_name not in message.name:
+                if self._config.in_game_char_name not in message.name:
                     webhook = DiscordWebhook(
-                        url=self.webhook,
+                        url=self._config.discord_webhook_url,
                         username=message.name,
                         content=message.content
                     )
@@ -82,11 +77,11 @@ class PacketWorker:
 
             except Exception as e:
                 print(f"[!] Error in worker packet processing: {e}")
-
+            finally:
+                self._queue.task_done()
+                
     def start(self):
-        """
-        Starts the worker thread.
-        """
+        """Starts the worker thread."""
         if self._worker_thread is None or not self._worker_thread.is_alive():
             self._worker_thread = threading.Thread(
                 target=self._loop, daemon=True
@@ -97,9 +92,7 @@ class PacketWorker:
             print("[*] PacketWorker thread is already running.")
 
     def stop(self):
-        """
-        Sends a shutdown signal (poison pill) to the worker thread and waits for it to finish.
-        """
+        """Sends a shutdown signal (poison pill) to the worker thread and waits for it to finish."""
         if self._worker_thread and self._worker_thread.is_alive():
             print("[*] Sending shutdown signal to PacketWorker thread...")
             self._queue.put(None)  # Poison pill
@@ -109,10 +102,7 @@ class PacketWorker:
             print("[*] PacketWorker thread is not running or not initialized.")
 
     def add_packet(self, packet):
-        """
-        Adds a packet to the internal queue for processing by the worker thread.
-        Drops packets if the queue is full.
-        """
+        """Adds a packet to the internal queue for processing by the worker thread."""
         try:
             self._queue.put_nowait(packet)
         except queue.Full:
@@ -130,14 +120,10 @@ class PacketWorker:
 
 
 class PacketSniffer(threading.Thread):
-    def __init__(
-        self,
-        worker_instance: PacketWorker,
-        network_interface: str = "Ethernet",
-    ):
-        super().__init__()
+    def __init__(self, config: PacketSnifferConfig, worker_instance: PacketWorker):
+        super().__init__(daemon=True)
+        self._config = config
         self.worker_instance = worker_instance
-        self.network_interface = network_interface
         self.running = True
         self.capture: Optional[pyshark.LiveCapture] = None
         self.loop: Optional[asyncio.AbstractEventLoop] = None
@@ -146,11 +132,11 @@ class PacketSniffer(threading.Thread):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
-        print(f"Starting packet sniffer on interface: {self.network_interface}")
+        print(f"Starting packet sniffer on interface: {self._config.network_interface}")
         try:
             self.capture = pyshark.LiveCapture(
-                interface=self.network_interface,
-                bpf_filter="src host 54.214.176.167"
+                interface=self._config.network_interface,
+                bpf_filter=self._config.bpf_filter
             )
             for packet in self.capture.sniff_continuously():
                 if not self.running:
@@ -162,6 +148,7 @@ class PacketSniffer(threading.Thread):
 
                 if not hasattr(packet.tcp, "payload"):
                     continue
+                
                 self.worker_instance.add_packet(packet)
 
         except Exception as e:
