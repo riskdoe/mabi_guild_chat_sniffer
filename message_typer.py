@@ -49,6 +49,9 @@ INVISIBLE_CHAR_PATTERN = (
     r"|[\u034F]"                   # Combining grapheme joiner
     r"|[\u061C]"                   # Arabic letter mark
 )
+CODEPOINT_PATTERN = (
+    r"[\u0300-\u036f\u0483-\u0489\u1AB0-\u1AFF\u1DC0-\u1DFF\u20D0-\u20FF\uFE20-\uFE2F]"
+)
 DISCORD_MENTION_PATTERN = r"<@!?(\d+)>|<@&(\d+)>"  # User and role mentions
 DISCORD_CHANNEL_PATTERN = r"<#(\d+)>"              # Channel mentions
 DISCORD_MARKDOWN_PATTERN = r"(\*\*|__|\*|_|~~|`|```|\|\|)"
@@ -61,6 +64,7 @@ INVISIBLE_CHAR_REGEX = re.compile(INVISIBLE_CHAR_PATTERN)
 DISCORD_MENTION_REGEX = re.compile(DISCORD_MENTION_PATTERN)
 DISCORD_CHANNEL_REGEX = re.compile(DISCORD_CHANNEL_PATTERN)
 DISCORD_MARKDOWN_REGEX = re.compile(DISCORD_MARKDOWN_PATTERN)
+CODEPOINT_PATTERN_REGEX = re.compile(CODEPOINT_PATTERN)
 
 
 
@@ -83,6 +87,7 @@ def normalize_discord_message(
         return emote_replacement.format(name=name, id=emote_id)
     
     message = DISCORD_EMOTE_REGEX.sub(emote_replacer, message)
+    message = CODEPOINT_PATTERN_REGEX.sub("", message)
     
     # 3. Remove or replace Unicode emojis
     message = UNICODE_EMOJI_REGEX.sub(emoji_replacement, message)
