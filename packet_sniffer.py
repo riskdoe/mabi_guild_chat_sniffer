@@ -72,7 +72,7 @@ class PacketWorker:
                         content=message.content
                     )
                     message.add_emotes(webhook)
-                    print(f"{message.name}: {message.content}")
+                    print(f"[I] {message.name}: {message.content}")
                     webhook.execute()
 
             except Exception as e:

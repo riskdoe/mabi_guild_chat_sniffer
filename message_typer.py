@@ -11,28 +11,6 @@ from typing import Optional
 
 import discord
 
-
-
-def split_message(message: str, limit: int = 80) -> list[str]:
-    """Split message into chunks, preserving whole words."""
-    words = message.split(" ")
-    chunks: list[str] = []
-    current_chunk = ""
-
-    for word in words:
-        if len(current_chunk) + len(word) + (1 if current_chunk else 0) > limit:
-            if current_chunk:
-                chunks.append(current_chunk)
-            current_chunk = word
-        else:
-            current_chunk = f"{current_chunk} {word}".strip()
-
-    if current_chunk:
-        chunks.append(current_chunk)
-
-    return chunks
-
-
 # ============================================================================
 # AI GENERATED CODE
 # ============================================================================
@@ -241,8 +219,7 @@ class ToClientWorker:
                 break
 
             try:
-                if item:
-                    type_message(item, delay_seconds=self._delay_seconds)
+                type_message(item, delay_seconds=self._delay_seconds)
             except Exception as e:
                 print(f"[!] ToClientWorker error: {e}")
             finally:
@@ -308,6 +285,8 @@ class DiscordClient(discord.Client):
         formatted_message = f"[{usrname}] : {cleaned}".replace('"', "")
         chunks = normalize_message_chunks(formatted_message, chunk_size=80)
     
+        print(f"[O] {formatted_message}")
+
         for chunk in chunks:
             chunk = chunk.replace("\0", "")
             if chunk:
@@ -344,4 +323,4 @@ class ToClientBotThread(threading.Thread):
         self._client = client
 
         print("[*] Starting to_game Discord bot...")
-        client.run(self._config.discord_token)
+        client.run(self._config.discord_token, log_handler=None)
