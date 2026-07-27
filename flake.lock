@@ -1,0 +1,24 @@
+{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1784992771,
+        "narHash": "sha256-bMFkztAgknlPoHEH1IsxYRjdlvuqXuM6+lvwozfa/0U=",
+        "rev": "37bfb33419c6e367e8bb6f44041eaecf953b5236",
+        "type": "tarball",
+        "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1041554.37bfb33419c6/nixexprs.tar.xz"
+      },
+      "original": {
+        "id": "nixpkgs",
+        "type": "indirect"
+      }
+    },
+    "root": {
+      "inputs": {
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

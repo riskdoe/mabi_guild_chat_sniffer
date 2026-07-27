@@ -148,7 +148,7 @@ class PacketSniffer(threading.Thread):
 
                 if not hasattr(packet.tcp, "payload"):
                     continue
-                
+
                 self.worker_instance.add_packet(packet)
 
         except Exception as e:
