@@ -6,7 +6,7 @@ from message_typer import ToClientBotThread, ToClientConfig
 
 def main():
     """Main entry point for the packet sniffer application."""
-    load_dotenv()
+    load_dotenv(".env")
 
     # start sniffer
     sniffer_config = PacketSnifferConfig(
@@ -28,7 +28,7 @@ def main():
     typer_config = ToClientConfig(
         discord_token=os.getenv("DISCORD_TOKEN"),
         target_channel_id=int(os.getenv("TARGET_CHANNEL_ID", "0")),
-        guild_id=os.getenv("GUILD_ID"),  
+        guild_id=os.getenv("GUILD_ID"),
         delay_seconds=0.02
     )
 
