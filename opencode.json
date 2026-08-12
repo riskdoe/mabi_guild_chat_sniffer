@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "python": {
+      "command": [".venv/bin/pyright-langserver", "--stdio"],
+      "extensions": [".py", ".pyi"],
+      "enabled": true
+    }
+  }
+}
