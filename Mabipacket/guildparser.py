@@ -60,22 +60,27 @@ class Packet:
         self.opCode = self.data[6:10]
         self.ID = self.data[10:18]
 
-    #parse data into parameters
-    #so this will ONLY parse guild packets cause for some reason
-    #nexon just doesnt bother with adding the varints with it. likely because they are old packets
-
+        # Parse message length varint at offset 18
+        # This tells us where parameters actually start
         self.msglenbytes = varint.decode_bytes(self.data[18:])
+        # Varint itself takes 1+ bytes - find where it ends
+        varint_len = 1
+        for b in self.data[18:]:
+            if b & 0x80:
+                varint_len += 1
+            else:
+                break
+        param_start = 18 + varint_len
 
         if binascii.hexlify(self.opCode).decode("ascii") == "c36f0000":
-            #we need do different processing cause fuck
+            # Guild packet - always 2 parameters (name, message)
             self.paramCount = 2
         else: 
-            #yea this isnt a guild packet lets just leave
             self.paramCount = 0
 
 
         if self.paramCount > 0:
-            self.paramIndex = 19
+            self.paramIndex = param_start
             for i in range(self.paramCount):
                 match self.data[self.paramIndex]:
                         case 0: #None
@@ -102,12 +107,13 @@ class Packet:
                         case 7 :# bin
                             #string and bin have an extra byte to designate how much data is in the paramete
                             contentLength = int(self.data[self.paramIndex+1:self.paramIndex+3].hex(),16)
-                            #if the content length is 0 then we only hve 1 byte of info tacked on the end? might just be null too. 
+                            #if the content length is 0 then we only have 1 byte of info tacked on the end? might just be null too. 
                             if contentLength == 0:
                                 self.parameters.append(Parameter(self.data[self.paramIndex],self.data[self.paramIndex+2:self.paramIndex+3]))
                                 self.paramIndex += 4
-                            self.parameters.append(Parameter(self.data[self.paramIndex],self.data[self.paramIndex+3:self.paramIndex+contentLength+3]))
-                            self.paramIndex += (contentLength + 3)
+                            else:
+                                self.parameters.append(Parameter(self.data[self.paramIndex],self.data[self.paramIndex+3:self.paramIndex+contentLength+3]))
+                                self.paramIndex += (contentLength + 3)
                         case _:
                            if self.debug:
                             print("param match not found")
