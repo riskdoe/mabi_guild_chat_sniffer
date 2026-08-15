@@ -80,6 +80,27 @@ def display_stats(stdscr):
 
 def run_tui(stdscr):
     """Run the TUI interface."""
+    # Load environment variables
+    load_dotenv(".env")
+    
+    # Validate required environment variables
+    required = {
+        "DISCORD_WEB_HOOK": "Discord webhook URL for sending messages",
+        "DISCORD_TOKEN": "Discord bot token",
+        "TARGET_CHANNEL_ID": "Target Discord channel ID",
+    }
+    missing = [k for k in required if not os.getenv(k)]
+    if missing:
+        stdscr.clear()
+        stdscr.addstr(0, 0, "ERROR: Missing required environment variables:")
+        for i, m in enumerate(missing):
+            stdscr.addstr(2 + i, 0, f"  {m} - {required[m]}")
+        stdscr.addstr(len(required) + 3, 0, "Please set them in .env file or environment.")
+        stdscr.addstr(len(required) + 5, 0, "Press any key to exit...")
+        stdscr.refresh()
+        stdscr.getch()
+        return
+    
     # Initialize curses
     curses.curs_set(0)  # Hide cursor
     stdscr.nodelay(1)   # Non-blocking input
@@ -91,7 +112,7 @@ def run_tui(stdscr):
     # Start background tasks
     bpf_filter = os.getenv("BPF_FILTER", "src host 54.214.176.167")
     sniffer_config = PacketSnifferConfig(
-        discord_webhook_url=os.getenv("DISCORD_WEB_HOOK"),
+        discord_webhook_url=os.environ["DISCORD_WEB_HOOK"],  # type: ignore
         network_interface=os.getenv("NETWORK_INTERFACE", "Ethernet"),
         in_game_char_name=os.getenv("IN_GAME_CHAR_NAME", "DefaultChar"),
         bot_name=os.getenv("BOT_NAME", "DefaultBot"),
@@ -105,8 +126,8 @@ def run_tui(stdscr):
     packet_sniffer.start()
     
     typer_config = ToClientConfig(
-        discord_token=os.getenv("DISCORD_TOKEN"),
-        target_channel_id=int(os.getenv("TARGET_CHANNEL_ID")),
+        discord_token=os.environ["DISCORD_TOKEN"],
+        target_channel_id=int(os.environ["TARGET_CHANNEL_ID"]),
         guild_id=int(os.getenv("GUILD_ID", "0")) or None,
         delay_seconds=0.02
     )
