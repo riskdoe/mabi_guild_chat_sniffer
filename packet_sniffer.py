@@ -8,7 +8,9 @@ from typing import Optional
 
 import Mabipacket.guildparser as parser
 from discord_webhook import DiscordWebhook
-from Guildmessage import Guilde_message
+from Guildmessage import Guild_message
+
+
 
 
 @dataclass(frozen=True)
@@ -56,7 +58,7 @@ class PacketWorker:
                     continue
 
                 # Build the message to send to Discord webhook
-                message: Guilde_message = Guilde_message(
+                message: Guild_message = Guild_message(
                     name=parsed_packet.parameters[0].value,
                     content=parsed_packet.parameters[1].value
                 )
