@@ -3,3 +3,5 @@
 test.py
 uv.lock
 .coverage
+/mentions_config.json
+

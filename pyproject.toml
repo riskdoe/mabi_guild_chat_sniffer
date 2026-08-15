@@ -8,5 +8,43 @@ dependencies = [
     "discord>=2.3.2",
     "discord-webhook>=1.4.1",
     "pyshark>=0.6",
+    "pytest-cov[test]>=7.1.0",
     "python-dotenv>=1.1.1",
 ]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-mock>=3.12",
+]
+dev = [
+    "pyright>=1.1.300",
+    "ruff>=0.4.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.pyright]
+venv = ".venv"
+pythonVersion = "3.13"
+typeCheckingMode = "basic"
+reportMissingImports = true
+reportMissingTypeStubs = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "T20", "W", "A", "C90", "PTH", "ERA", "PL", "TRY", "NPY", "PD", "PGH", "PIE", "TID", "RSE", "RET", "FLY", "LOG", "ARG", "PTH", "ASYNC", "Q", "DTZ", "TCH", "INT", "PERF", "RUF"]
+ignore = ["E501", "SIM103"]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint]
+preview = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
