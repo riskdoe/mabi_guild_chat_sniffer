@@ -3,7 +3,7 @@
 Bidirectional bridge between Mabinogi guild chat and Discord. Captures in-game guild messages via packet sniffing and forwards them to a Discord webhook. Reads messages from a Discord channel and types them into the game via xdotool.
 
 
-# AI disclosure
+## AI disclosure
 I've been using this project to learn about and how to use tools like opencode.
 there is *some* AI genned code. I'll attempt to mark it as such as it comes up.
 
