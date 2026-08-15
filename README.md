@@ -1,79 +1,95 @@
-# Mabinogi Chat Sniffer → Discord Bridge
+# Mabinogi Guild Chat Sniffer
 
-A personal tool for capturing guild chat messages from **Mabinogi** and forwarding them to a Discord channel via webhook — and vice versa.
+Bidirectional bridge between Mabinogi guild chat and Discord. Captures in-game guild messages via packet sniffing and forwards them to a Discord webhook. Reads messages from a Discord channel and types them into the game via xdotool.
 
-## sniffer
-- Uses `pyshark` to **sniff packets** from the Mabinogi chat server
-- Detects in-game messages based on known packet structure
-- Extracts and decodes messages
-- Forwards cleaned messages to a **Discord Webhook**
+## Architecture
 
-## message typer
-- will take a message from a choosen discord channel, find the display name for the user
-- attempt to remove any unicode emotes
-- attempt to give names to any discord based emote
-- split the message into chunks with out breaking apart whole words
-- then type those messages out using a linux command "xdotool"
+**In-game → Discord (Sniffer)**
+- Uses `pyshark` to capture TCP packets on a network interface
+- Filters for Mabinogi chat server traffic (default BPF: `src host 54.214.176.167`)
+- Parses guild chat packets using custom Mabinogi packet parser
+- Extracts sender name and message content
+- Cleans message (removes @everyone/@here, replaces configured mentions)
+- Sends to Discord via webhook with username set to character name
+- Adds custom embed images for specific emotes (`:foxspinn:`, `:foxspin:`)
 
-
-the message will be typed into any text box that is currently selected
-
-# setup
-make sure you have uv installed
-
-install uv:
-https://docs.astral.sh/uv/getting-started/installation/#__tabbed_1_1
-
-create a venv:
-`uv venv`
-
-sync all the required packages:
-`uv sync`
-
-create and edit a .env file
-
-```example
-DISCORD_WEB_HOOK="hook"
-BOT_NAME="botname"
-IN_GAME_CHAR_NAME="ingamename"
-NETWORK_INTERFACE="enp10s0"
-TARGET_CHANNEL_ID="discord channel id"
-GUILD_ID="discord server id"
-DISCORD_TOKEN="bot token"
-```
-
-run:
-`uv run main.py`
-
-###  System dependencies
-
-- Wireshark
-- xdotool
-- wine
-
-install requirements on deb based systems
-`sudo apt install wireshark, xdotool`
-(if your running arch im sure you know how to set this up in arch)
-
-
-Make sure you have permissions for dumpcap / tshark on the user running the script
-
-I use heroic launcher to get wine and all that set up for mabinogi, just install nexon launcher inside heroic
+**Discord → In-game (Typer)**
+- Discord bot listens to a target channel (ignores bots, webhooks, commands)
+- Normalizes messages: replaces custom emotes with `:name:`, strips Unicode emojis, removes mentions/markdown
+- Splits into chunks (default 80 chars) without breaking words
+- Types each chunk into the active Mabinogi window via `xdotool`
 
 ## Requirements
-Works on **Linux only** (designed for my personal server setup)
-- Wireshark
-- xdotool
 
-Make sure you have permissions for dumpcap / tshark
+- Linux (tested on Debian-based)
+- Python 3.13+
+- Wireshark (provides `dumpcap`/`tshark` for packet capture)
+- `xdotool` for typing into game window
+- Wine + Heroic Launcher (for running Mabinogi on Linux)
+- `uv` for Python package management
 
+## Installation
 
----
+```bash
+# Install system dependencies (Debian/Ubuntu)
+sudo apt install wireshark xdotool
 
-### Important Notes
--This is a personal project / toy tool
--Use at your own risk
--No support guaranteed
+# Install uv if not present
+# https://docs.astral.sh/uv/getting-started/installation/
 
-### License
-MIT / FOSS — fork it, use it, break it. Have fun.
+# Create venv and sync dependencies
+uv venv
+uv sync
+```
+
+## Configuration
+
+Copy `.env.example` to `.env` and fill in:
+
+```env
+DISCORD_TOKEN=your_bot_token
+DISCORD_GUILD_ID=your_guild_id          # Optional: for faster command sync
+TARGET_CHANNEL_ID=channel_id_to_read_from
+DISCORD_WEB_HOOK=webhook_url_for_sending
+IN_GAME_CHAR_NAME=YourCharacterName     # Used to filter own messages
+NETWORK_INTERFACE=Ethernet              # Interface to sniff (e.g., eth0, enp3s0)
+BOT_NAME=BotDisplayName                 # Optional, default: DefaultBot
+BPF_FILTER="src host 54.214.176.167"    # Optional, default shown
+```
+
+Additional options (set in `.env` or code):
+- `GUILD_ID` — Discord guild ID for slash command sync (optional)
+- `delay_seconds` — Typing delay between keystrokes (default: 0.02)
+
+**Permissions**: The user running the script needs `dumpcap`/`tshark` capture permissions:
+```bash
+sudo setcap cap_net_raw,cap_net_admin+eip $(which dumpcap)
+# or run with sudo (not recommended)
+```
+
+## Running
+
+```bash
+# TUI mode (default when run in terminal with curses)
+uv run main.py
+
+# Console mode (when not in TTY or curses unavailable)
+uv run main.py
+```
+
+The TUI shows uptime, packet/message counters, errors, and recent logs. Press `q` to quit.
+
+## Mention Configuration
+
+Create `mentions_config.json` (see `mentions_config.example.json`) to map `@keyword` to Discord role/user mentions:
+
+```json
+{
+  "role_mentions": { "keyword": "role_id" },
+  "user_mentions": { "keyword": "user_id" }
+}
+```
+
+## License
+
+MIT — fork, use, break, fix. No warranty.
