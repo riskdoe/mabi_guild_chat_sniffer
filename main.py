@@ -1,16 +1,17 @@
-import os
 import signal
 import sys
 import logging
 import threading
-import time
 import queue
+
 from dotenv import load_dotenv
 
-from packet_sniffer import PacketSnifferConfig, PacketWorker, PacketSniffer
-from message_typer import ToClientBotThread, ToClientConfig
+from packet_sniffer import PacketWorker, PacketSniffer
+from discord_client import ToClientBotThread
 from tui import TUI, create_queue_handler
 from stats import stats
+from config import load_config, create_sniffer_config, create_typer_config
+
 
 # Try to import curses for TUI
 try:
@@ -31,12 +32,12 @@ def setup_logging_for_tui():
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
-    
+
     # Set up queue handler for root logger (catches all logs)
     queue_handler = create_queue_handler(log_queue)
     root_logger.addHandler(queue_handler)
     root_logger.setLevel(logging.INFO)
-    
+
     # Also add to module logger
     logger.addHandler(queue_handler)
     logger.setLevel(logging.INFO)
@@ -56,48 +57,20 @@ def run_tui(stdscr):
     setup_logging_for_tui()
     load_dotenv(".env")
     
-    required = {
-        "DISCORD_WEB_HOOK": "Discord webhook URL for sending messages",
-        "DISCORD_TOKEN": "Discord bot token",
-        "TARGET_CHANNEL_ID": "Target Discord channel ID",
-    }
-    missing = [k for k in required if not os.getenv(k)]
-    if missing:
-        stdscr.clear()
-        stdscr.addstr(0, 0, "ERROR: Missing required environment variables:")
-        for i, m in enumerate(missing):
-            stdscr.addstr(2 + i, 0, f"  {m} - {required[m]}")
-        stdscr.addstr(len(required) + 3, 0, "Please set them in .env file or environment.")
-        stdscr.addstr(len(required) + 5, 0, "Press any key to exit...")
-        stdscr.refresh()
-        stdscr.getch()
-        return
-    
-    bpf_filter = os.getenv("BPF_FILTER", "src host 54.214.176.167")
-    sniffer_config = PacketSnifferConfig(
-        discord_webhook_url=os.environ["DISCORD_WEB_HOOK"],
-        network_interface=os.getenv("NETWORK_INTERFACE", "Ethernet"),
-        in_game_char_name=os.getenv("IN_GAME_CHAR_NAME", "DefaultChar"),
-        bot_name=os.getenv("BOT_NAME", "DefaultBot"),
-        queue_maxsize=1000,
-        bpf_filter=bpf_filter
-    )
+    config = load_config()
+
+    sniffer_config = create_sniffer_config(config)
     packet_worker = PacketWorker(sniffer_config)
     packet_sniffer = PacketSniffer(sniffer_config, packet_worker)
-    
+
     packet_worker.start()
     packet_sniffer.start()
-    
-    typer_config = ToClientConfig(
-        discord_token=os.environ["DISCORD_TOKEN"],
-        target_channel_id=int(os.environ["TARGET_CHANNEL_ID"]),
-        guild_id=int(os.getenv("GUILD_ID", "0")) or None,
-        delay_seconds=0.02
-    )
-    
+
+    typer_config = create_typer_config(config)
+
     typer = ToClientBotThread(typer_config)
     typer.start()
-    
+
     # Logging already set up by setup_logging_for_tui() at start of run_tui
 
     def do_shutdown():
@@ -105,10 +78,10 @@ def run_tui(stdscr):
         packet_sniffer.stop()
         packet_worker.stop()
         typer.stop()
-    
+
     signal.signal(signal.SIGINT, lambda s, f: do_shutdown())
     signal.signal(signal.SIGTERM, lambda s, f: do_shutdown())
-    
+
     tui = TUI(
         log_queue,
         on_shutdown=do_shutdown,
@@ -121,28 +94,17 @@ def run_console():
     """Run the original console interface."""
     setup_logging_for_console()
     load_dotenv(".env")
-    
-    bpf_filter = os.getenv("BPF_FILTER", "src host 54.214.176.167")
-    sniffer_config = PacketSnifferConfig(
-        discord_webhook_url=os.getenv("DISCORD_WEB_HOOK"),
-        network_interface=os.getenv("NETWORK_INTERFACE", "Ethernet"),
-        in_game_char_name=os.getenv("IN_GAME_CHAR_NAME", "DefaultChar"),
-        bot_name=os.getenv("BOT_NAME", "DefaultBot"),
-        queue_maxsize=1000,
-        bpf_filter=bpf_filter
-    )
+
+    config = load_config()
+
+    sniffer_config = create_sniffer_config(config)
     packet_worker = PacketWorker(sniffer_config)
     packet_sniffer = PacketSniffer(sniffer_config, packet_worker)
 
     packet_worker.start()
     packet_sniffer.start()
 
-    typer_config = ToClientConfig(
-        discord_token=os.getenv("DISCORD_TOKEN"),
-        target_channel_id=int(os.getenv("TARGET_CHANNEL_ID")),
-        guild_id=int(os.getenv("GUILD_ID", "0")) or None,
-        delay_seconds=0.02
-    )
+    typer_config = create_typer_config(config)
 
     typer = ToClientBotThread(typer_config)
     typer.start()
