@@ -19,28 +19,41 @@ try:
 except ImportError:
     CURSES_AVAILABLE = False
 
-# Configure logging with cleaner format
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)-8s] %(name)s: %(message)s",
-    datefmt="%H:%M:%S"
-)
-logger = logging.getLogger(__name__)
-
 # Log queue for TUI
 log_queue = queue.Queue(maxsize=1000)
 
+logger = logging.getLogger(__name__)
 
-def setup_queue_handler():
-    """Set up the queue handler for logging."""
+
+def setup_logging_for_tui():
+    """Configure logging for TUI mode - only queue handler, no stdout."""
+    # Remove any existing handlers from root logger
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Set up queue handler for root logger (catches all logs)
     queue_handler = create_queue_handler(log_queue)
+    root_logger.addHandler(queue_handler)
+    root_logger.setLevel(logging.INFO)
+    
+    # Also add to module logger
     logger.addHandler(queue_handler)
-    # Also add to root logger to catch all logs
-    logging.getLogger().addHandler(queue_handler)
+    logger.setLevel(logging.INFO)
+
+
+def setup_logging_for_console():
+    """Configure logging for console mode - standard stdout output."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)-8s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S"
+    )
 
 
 def run_tui(stdscr):
     """Run the TUI interface."""
+    setup_logging_for_tui()
     load_dotenv(".env")
     
     required = {
@@ -85,8 +98,8 @@ def run_tui(stdscr):
     typer = ToClientBotThread(typer_config)
     typer.start()
     
-    setup_queue_handler()
-    
+    # Logging already set up by setup_logging_for_tui() at start of run_tui
+
     def shutdown(signum, frame):
         logger.info("Shutting down...")
         packet_sniffer.stop()
@@ -106,6 +119,7 @@ def run_tui(stdscr):
 
 def run_console():
     """Run the original console interface."""
+    setup_logging_for_console()
     load_dotenv(".env")
     
     bpf_filter = os.getenv("BPF_FILTER", "src host 54.214.176.167")
