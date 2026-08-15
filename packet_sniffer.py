@@ -91,12 +91,17 @@ class PacketWorker:
                         chunk = content[i:i + max_chunk]
                         webhook = DiscordWebhook(
                             url=self._config.discord_webhook_url,
-                            username=message.name if i == 0 else "",
+                            username=message.name[:80] if i == 0 else "",  # Discord username limit 80
                             content=chunk
                         )
                         message.add_emotes(webhook)
                         logger.info(f"{message.name}: {chunk}")
-                        webhook.execute()
+                        try:
+                            response = webhook.execute()
+                            logger.debug(f"Webhook response: {response.status_code}")
+                        except Exception as webhook_err:
+                            logger.exception(f"Webhook execute failed for '{chunk[:50]}...': {webhook_err}")
+                            raise
                         stats.increment('messages_to_discord')
                     
             except Exception as e:
