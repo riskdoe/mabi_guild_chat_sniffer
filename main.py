@@ -100,21 +100,21 @@ def run_tui(stdscr):
     
     # Logging already set up by setup_logging_for_tui() at start of run_tui
 
-    def shutdown(signum, frame):
+    def do_shutdown():
         logger.info("Shutting down...")
         packet_sniffer.stop()
         packet_worker.stop()
         typer.stop()
-        packet_sniffer.join(timeout=3)
-        typer.join(timeout=5)
     
-    signal.signal(signal.SIGINT, shutdown)
-    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, lambda s, f: do_shutdown())
+    signal.signal(signal.SIGTERM, lambda s, f: do_shutdown())
     
-    tui = TUI(log_queue)
+    tui = TUI(
+        log_queue,
+        on_shutdown=do_shutdown,
+        threads_to_join=[packet_sniffer, typer],
+    )
     tui.run(stdscr)
-    
-    shutdown(None, None)
 
 
 def run_console():

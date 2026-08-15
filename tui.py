@@ -3,9 +3,9 @@ import logging
 import queue
 import threading
 import time
-from typing import Optional
+from typing import Callable, Optional
 
-from stats import Stats, stats
+from stats import stats
 
 
 class QueueHandler(logging.Handler):
@@ -30,10 +30,14 @@ class TUI:
         log_queue: queue.Queue,
         max_log_lines: int = 100,
         stats_update_interval: float = 1.0,
+        on_shutdown: Optional[Callable[[], None]] = None,
+        threads_to_join: Optional[list[threading.Thread]] = None,
     ):
         self.log_queue = log_queue
         self.max_log_lines = max_log_lines
         self.stats_update_interval = stats_update_interval
+        self.on_shutdown = on_shutdown
+        self.threads_to_join = threads_to_join or []
         self.log_lines: list[str] = []
         self.last_stats_update = 0.0
         self._shutdown = threading.Event()
@@ -47,6 +51,12 @@ class TUI:
 
         self._draw_static()
         self._main_loop()
+        
+        # Run shutdown callback and wait for threads
+        if self.on_shutdown:
+            self.on_shutdown()
+        for t in self.threads_to_join:
+            t.join(timeout=5)
 
     def _draw_static(self) -> None:
         assert self._stdscr is not None
