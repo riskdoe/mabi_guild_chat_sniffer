@@ -54,28 +54,55 @@ class Packet:
     ID: bytes = field(init=False)
     parametersCount: int = field(init=False)
     parameters: list[Parameter] = field(default_factory=list)
+    _too_short: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self.header = self.data[0:6]
-        self.opCode = self.data[6:10]
-        self.ID = self.data[10:18]
+        # Need at least 5 bytes to read packet length (bytes 3-4)
+        if len(self.data) < 5:
+            self.paramCount = 0
+            self.header = b""
+            self.opCode = b""
+            self.ID = b""
+            self._too_short = True
+            return
+            
+        # Header: bytes 0-2 = magic, bytes 3-4 = packet length (LE), byte 5 = flags
+        # When packet length > 255, there's an extra byte at offset 6 (7-byte header)
+        pkt_len = int.from_bytes(self.data[3:5], "little")
+        header_len = 7 if pkt_len > 255 else 6
+        
+        # Need enough data for header + opcode + ID
+        if len(self.data) < header_len + 12:
+            self.paramCount = 0
+            self.header = self.data[0:min(header_len, len(self.data))]
+            self.opCode = b""
+            self.ID = b""
+            self._too_short = True
+            return
+        
+        self.header = self.data[0:header_len]
+        self.opCode = self.data[header_len:header_len+4]
+        self.ID = self.data[header_len+4:header_len+12]
 
-    #parse data into parameters
-    #so this will ONLY parse guild packets cause for some reason
-    #nexon just doesnt bother with adding the varints with it. likely because they are old packets
-
-        self.msglenbytes = varint.decode_bytes(self.data[18:])
+        # After ID, there's a variable gap before parameters:
+        # - 6-byte header: 1 extra byte (gap = 1)
+        # - 7-byte header: 2 extra bytes (gap = 2)
+        # Pattern: gap = header_len - 5
+        gap = header_len - 5
+        param_start = header_len + 12 + gap  # header + opcode(4) + ID(8) + gap
+        
+        if self.debug:
+            print(f"Packet length: {pkt_len}, header_len: {header_len}, gap: {gap}, param_start: {param_start}")
 
         if binascii.hexlify(self.opCode).decode("ascii") == "c36f0000":
-            #we need do different processing cause fuck
+            # Guild packet - always 2 parameters (name, message)
             self.paramCount = 2
         else: 
-            #yea this isnt a guild packet lets just leave
             self.paramCount = 0
 
 
         if self.paramCount > 0:
-            self.paramIndex = 19
+            self.paramIndex = param_start
             for i in range(self.paramCount):
                 match self.data[self.paramIndex]:
                         case 0: #None
@@ -102,12 +129,13 @@ class Packet:
                         case 7 :# bin
                             #string and bin have an extra byte to designate how much data is in the paramete
                             contentLength = int(self.data[self.paramIndex+1:self.paramIndex+3].hex(),16)
-                            #if the content length is 0 then we only hve 1 byte of info tacked on the end? might just be null too. 
+                            #if the content length is 0 then we only have 1 byte of info tacked on the end? might just be null too. 
                             if contentLength == 0:
                                 self.parameters.append(Parameter(self.data[self.paramIndex],self.data[self.paramIndex+2:self.paramIndex+3]))
                                 self.paramIndex += 4
-                            self.parameters.append(Parameter(self.data[self.paramIndex],self.data[self.paramIndex+3:self.paramIndex+contentLength+3]))
-                            self.paramIndex += (contentLength + 3)
+                            else:
+                                self.parameters.append(Parameter(self.data[self.paramIndex],self.data[self.paramIndex+3:self.paramIndex+contentLength+3]))
+                                self.paramIndex += (contentLength + 3)
                         case _:
                            if self.debug:
                             print("param match not found")
@@ -122,16 +150,23 @@ def parse(data, debug) -> Packet | bool:
     #hopefully this will fix issues of failed packets
     try: 
         packet : Packet = Packet( data = data, debug = debug)
-    except:
+    except Exception as e:
+        if debug:
+            print(f"Packet construction failed: {e}")
         return False
     
     if packet.opCode.hex()=='0001d4c3': #NGS recv 7045000000000001d4c3
         return False
     
+    # Too short/invalid packet - return False
+    if packet._too_short:
+        return False
+    
     #check all parameters make sure they bytes, if not return false cause for some reason we failed to parse it
     for i in range(len(packet.parameters)):
         if type(packet.parameters[i].content) != bytes:
-            print("we failed the check dawg")
+            if debug:
+                print(f"Parameter {i} content is not bytes: {type(packet.parameters[i].content)}")
             return False
    
     if debug:

@@ -339,7 +339,8 @@ class TestPacketSniffer:
         
         mock_live_capture.assert_called_once_with(
             interface=config.network_interface,
-            bpf_filter=config.bpf_filter
+            bpf_filter=config.bpf_filter,
+            override_prefs={"tcp.desegment_tcp_streams": "TRUE"}
         )
         mock_capture.sniff_continuously.assert_called_once()
         mock_capture.close.assert_called_once()
@@ -406,6 +407,7 @@ class TestPacketSniffer:
         mock_packet = MagicMock()
         mock_packet.__contains__ = MagicMock(return_value=True)
         del mock_packet.tcp.payload  # No payload attribute
+        del mock_packet.tcp.reassembled_data  # No reassembled_data attribute
         
         mock_capture.sniff_continuously.return_value = iter([mock_packet])
         

@@ -46,10 +46,21 @@ class PacketWorker:
                 break
 
             try:
-                if not hasattr(packet, "tcp") or not hasattr(packet.tcp, "payload"):
+                if not hasattr(packet, "tcp"):
                     continue
 
-                payload_hex = packet.tcp.payload.replace(":", "")
+                # Try reassembled TCP stream data first (for fragmented long messages)
+                tcp = packet.tcp
+                reassembled = getattr(tcp, "reassembled_data", None)
+                if reassembled and isinstance(reassembled, str):
+                    payload_hex = reassembled.replace(":", "")
+                else:
+                    payload = getattr(tcp, "payload", None)
+                    if payload and isinstance(payload, str):
+                        payload_hex = payload.replace(":", "")
+                    else:
+                        continue
+                    
                 if not payload_hex:
                     continue
 
@@ -57,9 +68,11 @@ class PacketWorker:
                 parsed_packet = parser.parse(data=payload_bytes, debug=False)
 
                 if isinstance(parsed_packet, bool):
+                    logger.debug(f"Parser returned False for payload (len={len(payload_bytes)}): {payload_hex[:100]}...")
                     continue
 
                 if parsed_packet.paramCount == 0:
+                    logger.debug(f"Parser returned 0 params for payload (len={len(payload_bytes)}): {payload_hex[:100]}...")
                     continue
 
                 # Build the message to send to Discord webhook
@@ -73,17 +86,25 @@ class PacketWorker:
                 message.replace_mentions()
 
                 if self._config.in_game_char_name not in message.name:
-                    webhook = DiscordWebhook(
-                        url=self._config.discord_webhook_url,
-                        username=message.name,
-                        content=message.content
-                    )
-                    message.add_emotes(webhook)
-                    logger.info(f"{message.name}: {message.content}")
-                    webhook.execute()
-                    
-                    # Increment stats for messages sent to Discord
-                    stats.increment('messages_to_discord')
+                    # Discord has 2000 char limit per message - chunk if needed
+                    max_chunk = 1900
+                    content = message.content
+                    for i in range(0, len(content), max_chunk):
+                        chunk = content[i:i + max_chunk]
+                        webhook = DiscordWebhook(
+                            url=self._config.discord_webhook_url,
+                            username=message.name[:80] if i == 0 else "",  # Discord username limit 80
+                            content=chunk
+                        )
+                        message.add_emotes(webhook)
+                        logger.info(f"{message.name}: {chunk}")
+                        try:
+                            response = webhook.execute()
+                            logger.debug(f"Webhook response: {response.status_code}")
+                        except Exception as webhook_err:
+                            logger.exception(f"Webhook execute failed for '{chunk[:50]}...': {webhook_err}")
+                            raise
+                        stats.increment('messages_to_discord')
                     
             except Exception as e:
                 logger.exception(f"Error in worker packet processing: {e}")
@@ -150,7 +171,8 @@ class PacketSniffer(threading.Thread):
         try:
             self.capture = pyshark.LiveCapture(
                 interface=self._config.network_interface,
-                bpf_filter=self._config.bpf_filter
+                bpf_filter=self._config.bpf_filter,
+                override_prefs={"tcp.desegment_tcp_streams": "TRUE"}
             )
             for packet in self.capture.sniff_continuously():
                 if not self.running:
@@ -160,7 +182,12 @@ class PacketSniffer(threading.Thread):
                 if 'TCP' not in packet:
                     continue
 
-                if not hasattr(packet.tcp, "payload"):
+                # Accept packets with either payload or reassembled_data (must be strings)
+                tcp = packet.tcp
+                has_payload = hasattr(tcp, "payload") and isinstance(getattr(tcp, "payload", None), str)
+                has_reassembled = hasattr(tcp, "reassembled_data") and isinstance(getattr(tcp, "reassembled_data", None), str)
+                
+                if not (has_payload or has_reassembled):
                     continue
 
                 self.worker_instance.add_packet(packet)
