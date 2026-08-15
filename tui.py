@@ -104,6 +104,19 @@ class TUI:
             self._stdscr.refresh()
             time.sleep(0.05)
 
+        # Show shutdown message
+        self._draw_shutdown_message()
+        self._stdscr.refresh()
+
+    def _draw_shutdown_message(self) -> None:
+        assert self._stdscr is not None
+        msg = " Shutting down... "
+        y = max(0, curses.LINES - 2)
+        x = max(0, (curses.COLS - len(msg)) // 2)
+        self._stdscr.attron(curses.A_BOLD | curses.A_REVERSE)
+        self._stdscr.addstr(y, x, msg)
+        self._stdscr.attroff(curses.A_BOLD | curses.A_REVERSE)
+
     def _process_logs(self) -> None:
         while True:
             try:
