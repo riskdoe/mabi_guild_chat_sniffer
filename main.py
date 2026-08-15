@@ -1,4 +1,6 @@
 import os
+import signal
+import sys
 import logging
 from dotenv import load_dotenv
 from packet_sniffer import PacketSnifferConfig, PacketWorker, PacketSniffer
@@ -60,16 +62,23 @@ def main():
     typer = ToClientBotThread(typer_config)
     typer.start()
 
-    try:
-        while typer.is_alive():
-            typer.join(timeout=1)
-    except KeyboardInterrupt:
-        print("\n[*] Shutting down...")
+    def shutdown(signum, frame):
+        logger.info("Shutting down...")
         packet_sniffer.stop()
         packet_worker.stop()
         typer.stop()
         packet_sniffer.join(timeout=3)
         typer.join(timeout=5)
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, shutdown)
+    signal.signal(signal.SIGTERM, shutdown)
+
+    try:
+        while typer.is_alive():
+            typer.join(timeout=1)
+    except KeyboardInterrupt:
+        shutdown(signal.SIGINT, None)
 
 
 if __name__ == "__main__":
