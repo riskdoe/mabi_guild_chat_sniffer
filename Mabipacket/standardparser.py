@@ -158,7 +158,7 @@ class Packet:
                     break
 
 
-def parse(data, debug):
+def parse(data, debug, direction="unknown", port=0):
     if len(data) > 0 and data[0] == 0x88:
         if debug:
             print(f"Encrypted Packet: {direction} {data.hex()}")
