@@ -1,7 +1,30 @@
 import os
+import logging
 from dotenv import load_dotenv
 from packet_sniffer import PacketSnifferConfig, PacketWorker, PacketSniffer
 from message_typer import ToClientBotThread, ToClientConfig
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S"
+)
+logger = logging.getLogger(__name__)
+
+def validate_env():
+    """Validate required environment variables are set."""
+    required = {
+        "DISCORD_WEB_HOOK": "Discord webhook URL for sending messages",
+        "DISCORD_TOKEN": "Discord bot token",
+        "TARGET_CHANNEL_ID": "Target Discord channel ID",
+    }
+    missing = [k for k in required if not os.getenv(k)]
+    if missing:
+        logger.error("Missing required environment variables:")
+        for m in missing:
+            logger.error(f"    {m} - {required[m]}")
+        sys.exit(1)
 
 
 def main():

@@ -1,5 +1,6 @@
 import asyncio
 import binascii
+import logging
 import pyshark
 import queue
 import threading
@@ -11,6 +12,7 @@ from discord_webhook import DiscordWebhook
 from Guildmessage import Guild_message
 
 
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -29,14 +31,14 @@ class PacketWorker:
         self._config = config
         self._queue = queue.Queue(maxsize=config.queue_maxsize)
         self._worker_thread = None
-        print(f"[*] PacketWorker initialized with queue max size: {config.queue_maxsize}")
+        logger.info(f"PacketWorker initialized with queue max size: {config.queue_maxsize}")
 
     def _loop(self):
-        print("[*] PacketWorker thread started.")
+        logger.info("PacketWorker thread started.")
         while True:
             packet = self._queue.get()
             if packet is None:
-                print("[*] PacketWorker received shutdown signal. Exiting.")
+                logger.info("PacketWorker received shutdown signal. Exiting.")
                 self._queue.task_done()
                 break
 
@@ -74,14 +76,14 @@ class PacketWorker:
                         content=message.content
                     )
                     message.add_emotes(webhook)
-                    print(f"[I] {message.name}: {message.content}")
+                    logger.info(f"{message.name}: {message.content}")
                     webhook.execute()
 
             except Exception as e:
-                print(f"[!] Error in worker packet processing: {e}")
+                logger.exception(f"Error in worker packet processing: {e}")
             finally:
                 self._queue.task_done()
-                
+
     def start(self):
         """Starts the worker thread."""
         if self._worker_thread is None or not self._worker_thread.is_alive():
@@ -89,26 +91,26 @@ class PacketWorker:
                 target=self._loop, daemon=True
             )
             self._worker_thread.start()
-            print("[*] PacketWorker thread requested to start.")
+            logger.info("PacketWorker thread requested to start.")
         else:
-            print("[*] PacketWorker thread is already running.")
+            logger.info("PacketWorker thread is already running.")
 
     def stop(self):
         """Sends a shutdown signal (poison pill) to the worker thread and waits for it to finish."""
         if self._worker_thread and self._worker_thread.is_alive():
-            print("[*] Sending shutdown signal to PacketWorker thread...")
+            logger.info("Sending shutdown signal to PacketWorker thread...")
             self._queue.put(None)  # Poison pill
             self._worker_thread.join()
-            print("[*] PacketWorker thread stopped.")
+            logger.info("PacketWorker thread stopped.")
         else:
-            print("[*] PacketWorker thread is not running or not initialized.")
+            logger.info("PacketWorker thread is not running or not initialized.")
 
     def add_packet(self, packet):
         """Adds a packet to the internal queue for processing by the worker thread."""
         try:
             self._queue.put_nowait(packet)
         except queue.Full:
-            print("[!] PacketWorker queue full, dropping packet.")
+            logger.warning("PacketWorker queue full, dropping packet.")
 
     @property
     def queue_size(self):
@@ -134,7 +136,7 @@ class PacketSniffer(threading.Thread):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
-        print(f"Starting packet sniffer on interface: {self._config.network_interface}")
+        logger.info(f"Starting packet sniffer on interface: {self._config.network_interface}")
         try:
             self.capture = pyshark.LiveCapture(
                 interface=self._config.network_interface,
@@ -142,7 +144,7 @@ class PacketSniffer(threading.Thread):
             )
             for packet in self.capture.sniff_continuously():
                 if not self.running:
-                    print("Sniffing stopped by stop() call.")
+                    logger.info("Sniffing stopped by stop() call.")
                     break
 
                 if 'TCP' not in packet:
@@ -154,7 +156,7 @@ class PacketSniffer(threading.Thread):
                 self.worker_instance.add_packet(packet)
 
         except Exception as e:
-            print(f"Packet sniffer error: {e}")
+            logger.exception(f"Packet sniffer error: {e}")
         finally:
             if self.capture:
                 self.capture.close()
@@ -162,11 +164,11 @@ class PacketSniffer(threading.Thread):
                 self.loop.stop()
             if self.loop and not self.loop.is_closed():
                 self.loop.close()
-            print("PacketSniffer stopped.")
+            logger.info("PacketSniffer stopped.")
 
     def stop(self):
         """Stops the packet sniffing thread."""
         self.running = False
-        print("Stopping PacketSniffer...")
+        logger.info("Stopping PacketSniffer...")
         if self.capture:
             self.capture.close()

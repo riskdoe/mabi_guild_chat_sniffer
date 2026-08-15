@@ -1,15 +1,19 @@
 import asyncio
 import os
-import platform
 import queue
 import re
 import subprocess
 import threading
 import time
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
 import discord
+
+
+logger = logging.getLogger(__name__)
+
 
 # ============================================================================
 # AI GENERATED CODE
@@ -202,26 +206,26 @@ def type_message(message: str, delay_seconds: float) -> None:
 
 class ToClientWorker:
     def __init__(self,
-     queue_maxsize: int = 1000, 
+     queue_maxsize: int = 1000,
      delay_seconds: float = 0.02):
         self._queue: queue.Queue[Optional[str]] = queue.Queue(maxsize=queue_maxsize)
         self._thread: Optional[threading.Thread] = None
         self._delay_seconds = delay_seconds
-        print(f"[*] Typerworker initialized with queue max size: {queue_maxsize}")
+        logger.info(f"Typerworker initialized with queue max size: {queue_maxsize}")
 
     def _loop(self) -> None:
-        print("[*] ToClientWorker thread started.")
+        logger.info("ToClientWorker thread started.")
         while True:
             item = self._queue.get()
             if item is None:
-                print("[*] PacketWorker received shutdown signal. Exiting.")
+                logger.info("ToClientWorker received shutdown signal. Exiting.")
                 self._queue.task_done()
                 break
 
             try:
                 type_message(item, delay_seconds=self._delay_seconds)
             except Exception as e:
-                print(f"[!] ToClientWorker error: {e}")
+                logger.exception(f"ToClientWorker error: {e}")
             finally:
                 self._queue.task_done()
 
@@ -239,7 +243,7 @@ class ToClientWorker:
         try:
             self._queue.put_nowait(message)
         except queue.Full:
-            print("[!] ToClientWorker queue full, dropping message.")
+            logger.warning("ToClientWorker queue full, dropping message.")
 
 
 @dataclass(frozen=True)
@@ -266,7 +270,7 @@ class DiscordClient(discord.Client):
             await self.tree.sync()
 
     async def on_ready(self) -> None:
-        print(f"[*] to_game logged on as {self.user}!")
+        logger.info(f"to_game logged on as {self.user}!")
         self._worker.start()
 
     async def on_message(self, message: discord.Message) -> None:
@@ -285,7 +289,7 @@ class DiscordClient(discord.Client):
         formatted_message = f"[{usrname}] : {cleaned}".replace('"', "")
         chunks = normalize_message_chunks(formatted_message, chunk_size=80)
     
-        print(f"[O] {formatted_message}")
+        logger.info(f"Outgoing: {formatted_message}")
 
         for chunk in chunks:
             chunk = chunk.replace("\0", "")
@@ -304,12 +308,13 @@ class ToClientBotThread(threading.Thread):
         """Close the Discord client so the bot thread can exit."""
         if self._client is None:
             return
-        loop = getattr(self._client, "loop", None)
+        client = self._client  # Local variable for type narrowing
+        loop = getattr(client, "loop", None)
         if loop is None or loop.is_closed():
             return
         try:
             loop.call_soon_threadsafe(
-                lambda: asyncio.ensure_future(self._client.close())
+                lambda: asyncio.ensure_future(client.close())
             )
         except Exception:
             pass
@@ -322,5 +327,5 @@ class ToClientBotThread(threading.Thread):
         client = DiscordClient(config=self._config, worker=worker, intents=intents)
         self._client = client
 
-        print("[*] Starting to_game Discord bot...")
+        logger.info("Starting to_game Discord bot...")
         client.run(self._config.discord_token, log_handler=None)
