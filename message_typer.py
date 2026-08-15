@@ -12,19 +12,7 @@ from typing import Optional
 import discord
 
 
-# Import stats from main if available, otherwise create local stats
-try:
-    from main import stats, stats_lock
-except ImportError:
-    # Fallback if main is not available (e.g., when running tests)
-    stats = {
-        'packets_processed': 0,
-        'messages_to_discord': 0,
-        'messages_to_game': 0,
-        'errors': 0,
-        'start_time': 0
-    }
-    stats_lock = threading.Lock()
+from stats import stats, stats_lock
 
 
 logger = logging.getLogger(__name__)
@@ -240,13 +228,11 @@ class ToClientWorker:
             try:
                 type_message(item, delay_seconds=self._delay_seconds)
                 # Increment stats for messages sent to game
-                with stats_lock:
-                    stats['messages_to_game'] += 1
+                stats.increment('messages_to_game')
             except Exception as e:
                 logger.exception(f"ToClientWorker error: {e}")
                 # Increment error stats
-                with stats_lock:
-                    stats['errors'] += 1
+                stats.increment('errors')
             finally:
                 self._queue.task_done()
 
