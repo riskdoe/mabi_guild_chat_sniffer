@@ -3,13 +3,17 @@ from unittest.mock import MagicMock, patch, AsyncMock, call
 import queue
 import threading
 import asyncio
-from message_typer import (
+from message_normalizer import (
     normalize_discord_message,
     extract_discord_emotes,
     clean_username,
     normalize_message_chunks,
+)
+from to_client_worker import (
     type_message,
     ToClientWorker,
+)
+from discord_client import (
     ToClientConfig,
     DiscordClient,
     ToClientBotThread,
@@ -161,9 +165,9 @@ class TestNormalizeMessageChunks:
 class TestTypeMessage:
     """Test the type_message function."""
 
-    @patch("message_typer.os.system")
-    @patch("message_typer.subprocess.run")
-    @patch("message_typer.time.sleep")
+    @patch("to_client_worker.os.system")
+    @patch("to_client_worker.subprocess.run")
+    @patch("to_client_worker.time.sleep")
     def test_type_message_calls_xdotool(self, mock_sleep, mock_run, mock_system):
         type_message("test message", 0.01)
         
@@ -241,7 +245,7 @@ class TestToClientWorker:
         worker = ToClientWorker(queue_maxsize=100, delay_seconds=0.01)
         assert worker._queue.maxsize == 100
 
-    @patch("message_typer.type_message")
+    @patch("to_client_worker.type_message")
     def test_loop_processes_messages(self, mock_type_message):
         worker = ToClientWorker(queue_maxsize=10, delay_seconds=0.01)
         worker.start()
@@ -253,7 +257,7 @@ class TestToClientWorker:
         worker.stop()
         assert mock_type_message.call_count == 2
 
-    @patch("message_typer.type_message")
+    @patch("to_client_worker.type_message")
     def test_loop_handles_exception(self, mock_type_message, caplog):
         mock_type_message.side_effect = Exception("Test error")
         worker = ToClientWorker(queue_maxsize=10, delay_seconds=0.01)
@@ -457,8 +461,8 @@ class TestToClientBotThread:
         # Should not raise
         thread.stop()
 
-    @patch("message_typer.DiscordClient")
-    @patch("message_typer.ToClientWorker")
+    @patch("discord_client.DiscordClient")
+    @patch("discord_client.ToClientWorker")
     def test_run_creates_client_and_worker(self, mock_worker_class, mock_client_class, config):
         mock_worker = MagicMock()
         mock_worker_class.return_value = mock_worker

@@ -12,6 +12,9 @@ from discord_webhook import DiscordWebhook
 from Guildmessage import Guild_message
 
 
+from stats import stats, stats_lock
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,11 +81,18 @@ class PacketWorker:
                     message.add_emotes(webhook)
                     logger.info(f"{message.name}: {message.content}")
                     webhook.execute()
-
+                    
+                    # Increment stats for messages sent to Discord
+                    stats.increment('messages_to_discord')
+                    
             except Exception as e:
                 logger.exception(f"Error in worker packet processing: {e}")
+                # Increment error stats
+                stats.increment('errors')
             finally:
                 self._queue.task_done()
+                # Increment packets processed stat
+                stats.increment('packets_processed')
 
     def start(self):
         """Starts the worker thread."""
