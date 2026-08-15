@@ -68,9 +68,11 @@ class PacketWorker:
                 parsed_packet = parser.parse(data=payload_bytes, debug=False)
 
                 if isinstance(parsed_packet, bool):
+                    logger.debug(f"Parser returned False for payload (len={len(payload_bytes)}): {payload_hex[:100]}...")
                     continue
 
                 if parsed_packet.paramCount == 0:
+                    logger.debug(f"Parser returned 0 params for payload (len={len(payload_bytes)}): {payload_hex[:100]}...")
                     continue
 
                 # Build the message to send to Discord webhook

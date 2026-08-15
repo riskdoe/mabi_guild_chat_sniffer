@@ -71,6 +71,9 @@ class Packet:
             else:
                 break
         param_start = 18 + varint_len
+        
+        if self.debug:
+            print(f"Varint value: {self.msglenbytes}, varint_len: {varint_len}, param_start: {param_start}")
 
         if binascii.hexlify(self.opCode).decode("ascii") == "c36f0000":
             # Guild packet - always 2 parameters (name, message)
@@ -128,7 +131,9 @@ def parse(data, debug) -> Packet | bool:
     #hopefully this will fix issues of failed packets
     try: 
         packet : Packet = Packet( data = data, debug = debug)
-    except:
+    except Exception as e:
+        if debug:
+            print(f"Packet construction failed: {e}")
         return False
     
     if packet.opCode.hex()=='0001d4c3': #NGS recv 7045000000000001d4c3
@@ -137,7 +142,8 @@ def parse(data, debug) -> Packet | bool:
     #check all parameters make sure they bytes, if not return false cause for some reason we failed to parse it
     for i in range(len(packet.parameters)):
         if type(packet.parameters[i].content) != bytes:
-            print("we failed the check dawg")
+            if debug:
+                print(f"Parameter {i} content is not bytes: {type(packet.parameters[i].content)}")
             return False
    
     if debug:
