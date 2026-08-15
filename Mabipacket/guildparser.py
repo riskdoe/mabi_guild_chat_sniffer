@@ -54,26 +54,45 @@ class Packet:
     ID: bytes = field(init=False)
     parametersCount: int = field(init=False)
     parameters: list[Parameter] = field(default_factory=list)
+    _too_short: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self.header = self.data[0:6]
-        self.opCode = self.data[6:10]
-        self.ID = self.data[10:18]
+        # Need at least 5 bytes to read packet length (bytes 3-4)
+        if len(self.data) < 5:
+            self.paramCount = 0
+            self.header = b""
+            self.opCode = b""
+            self.ID = b""
+            self._too_short = True
+            return
+            
+        # Header: bytes 0-2 = magic, bytes 3-4 = packet length (LE), byte 5 = flags
+        # When packet length > 255, there's an extra byte at offset 6 (7-byte header)
+        pkt_len = int.from_bytes(self.data[3:5], "little")
+        header_len = 7 if pkt_len > 255 else 6
+        
+        # Need enough data for header + opcode + ID
+        if len(self.data) < header_len + 12:
+            self.paramCount = 0
+            self.header = self.data[0:min(header_len, len(self.data))]
+            self.opCode = b""
+            self.ID = b""
+            self._too_short = True
+            return
+        
+        self.header = self.data[0:header_len]
+        self.opCode = self.data[header_len:header_len+4]
+        self.ID = self.data[header_len+4:header_len+12]
 
-        # Parse message length varint at offset 18
-        # This tells us where parameters actually start
-        self.msglenbytes = varint.decode_bytes(self.data[18:])
-        # Varint itself takes 1+ bytes - find where it ends
-        varint_len = 1
-        for b in self.data[18:]:
-            if b & 0x80:
-                varint_len += 1
-            else:
-                break
-        param_start = 18 + varint_len
+        # After ID, there's a variable gap before parameters:
+        # - 6-byte header: 1 extra byte (gap = 1)
+        # - 7-byte header: 2 extra bytes (gap = 2)
+        # Pattern: gap = header_len - 5
+        gap = header_len - 5
+        param_start = header_len + 12 + gap  # header + opcode(4) + ID(8) + gap
         
         if self.debug:
-            print(f"Varint value: {self.msglenbytes}, varint_len: {varint_len}, param_start: {param_start}")
+            print(f"Packet length: {pkt_len}, header_len: {header_len}, gap: {gap}, param_start: {param_start}")
 
         if binascii.hexlify(self.opCode).decode("ascii") == "c36f0000":
             # Guild packet - always 2 parameters (name, message)
@@ -137,6 +156,10 @@ def parse(data, debug) -> Packet | bool:
         return False
     
     if packet.opCode.hex()=='0001d4c3': #NGS recv 7045000000000001d4c3
+        return False
+    
+    # Too short/invalid packet - return False
+    if packet._too_short:
         return False
     
     #check all parameters make sure they bytes, if not return false cause for some reason we failed to parse it
