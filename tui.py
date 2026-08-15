@@ -182,6 +182,8 @@ class TUI:
         assert self._stdscr is not None
         if y < curses.LINES and x < curses.COLS:
             try:
+                # Remove embedded null characters that curses can't handle
+                text = text.replace('\0', '')
                 self._stdscr.addstr(y, x, text[:curses.COLS - x - 1])
             except curses.error:
                 pass
